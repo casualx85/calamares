@@ -1,7 +1,7 @@
 /* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2014-2017, Teo Mrnjavac <teo@kde.org>
- *   Copyright 2017-2018, Adriaan de Groot <groot@kde.org>
+ *   Copyright 2017-2019, Adriaan de Groot <groot@kde.org>
  *   Copyright 2019, Collabora Ltd
  *
  *   Calamares is free software: you can redistribute it and/or modify
@@ -100,16 +100,16 @@ ChoicePage::ChoicePage( const SwapChoiceSet& swapChoices, QWidget* parent )
     , m_eraseButton( nullptr )
     , m_replaceButton( nullptr )
     , m_somethingElseButton( nullptr )
-    , m_eraseSwapChoices( nullptr )
+    , m_eraseSwapChoiceComboBox( nullptr )
     , m_deviceInfoWidget( nullptr )
     , m_beforePartitionBarsView( nullptr )
     , m_beforePartitionLabelsView( nullptr )
     , m_bootloaderComboBox( nullptr )
     , m_lastSelectedDeviceIndex( -1 )
     , m_enableEncryptionWidget( true )
-    , m_allowManualPartitioning( true )
     , m_availableSwapChoices( swapChoices )
     , m_eraseSwapChoice( pickOne( swapChoices ) )
+    , m_allowManualPartitioning( true )
 {
     setupUi( this );
 
@@ -201,15 +201,21 @@ ChoicePage::init( PartitionCoreModule* core )
 
 /** @brief Creates a combobox with the given choices in it.
  *
+ * Pre-selects the choice given by @p dflt.
  * No texts are set -- that happens later by the translator functions.
  */
 static inline QComboBox*
-createCombo( const QSet< SwapChoice >& s )
+createCombo( const QSet< SwapChoice >& s, SwapChoice dflt )
 {
     QComboBox* box = new QComboBox;
     for ( SwapChoice c : { SwapChoice::NoSwap, SwapChoice::SmallSwap, SwapChoice::FullSwap, SwapChoice::ReuseSwap, SwapChoice::SwapFile } )
         if ( s.contains( c ) )
             box->addItem( QString(), c );
+
+    int dfltIndex = box->findData( dflt );
+    if ( dfltIndex >= 0 )
+        box->setCurrentIndex( dfltIndex );
+
     return box;
 }
 
@@ -270,8 +276,8 @@ ChoicePage::setupChoices()
     // .. TODO: only if enabled in the config
     if ( m_availableSwapChoices.count() > 1 )
     {
-        m_eraseSwapChoices = createCombo( m_availableSwapChoices );
-        m_eraseButton->addOptionsComboBox( m_eraseSwapChoices );
+        m_eraseSwapChoiceComboBox = createCombo( m_availableSwapChoices, m_eraseSwapChoice );
+        m_eraseButton->addOptionsComboBox( m_eraseSwapChoiceComboBox );
     }
 
     m_itemsLayout->addWidget( m_alongsideButton );
@@ -316,14 +322,14 @@ ChoicePage::setupChoices()
 
     connect( this, &ChoicePage::actionChosen,
              this, &ChoicePage::onActionChanged );
-    if ( m_eraseSwapChoices )
-        connect( m_eraseSwapChoices, QOverload<int>::of(&QComboBox::currentIndexChanged),
-                 this, &ChoicePage::onActionChanged );
+    if ( m_eraseSwapChoiceComboBox )
+        connect( m_eraseSwapChoiceComboBox, QOverload<int>::of(&QComboBox::currentIndexChanged),
+                 this, &ChoicePage::onEraseSwapChoiceChanged );
 
     CALAMARES_RETRANSLATE(
         m_somethingElseButton->setText( tr( "<strong>Manual partitioning</strong><br/>"
                                             "You can create or resize partitions yourself." ) );
-        updateSwapChoicesTr( m_eraseSwapChoices );
+        updateSwapChoicesTr( m_eraseSwapChoiceComboBox );
     )
 }
 
@@ -428,6 +434,15 @@ ChoicePage::onActionChanged()
     }
 }
 
+void
+ChoicePage::onEraseSwapChoiceChanged()
+{
+    if ( m_eraseSwapChoiceComboBox )
+    {
+        m_eraseSwapChoice = static_cast<PartitionActions::Choices::SwapChoice>( m_eraseSwapChoiceComboBox->currentData().toInt() );
+        onActionChanged();
+    }
+}
 
 void
 ChoicePage::applyActionChoice( ChoicePage::InstallChoice choice )
@@ -448,7 +463,7 @@ ChoicePage::applyActionChoice( ChoicePage::InstallChoice choice )
                 m_encryptWidget->passphrase(),
                 gs->value( "efiSystemPartition" ).toString(),
                 CalamaresUtils::GiBtoBytes( gs->value( "requiredStorageGB" ).toDouble() ),
-                static_cast<PartitionActions::Choices::SwapChoice>( m_eraseSwapChoices->currentData().toInt() )
+                m_eraseSwapChoice
             };
 
             if ( m_core->isDirty() )
@@ -1246,6 +1261,7 @@ ChoicePage::setupActions()
     if ( osproberEntriesForCurrentDevice.count() == 0 )
     {
         CALAMARES_RETRANSLATE(
+            cDebug() << "Setting texts for 0 osprober entries";
             m_messageLabel->setText( tr( "This storage device does not seem to have an operating system on it. "
                                          "What would you like to do?<br/>"
                                          "You will be able to review and confirm your choices "
@@ -1278,6 +1294,7 @@ ChoicePage::setupActions()
         if ( !osName.isEmpty() )
         {
             CALAMARES_RETRANSLATE(
+                cDebug() << "Setting texts for 1 non-empty osprober entry";
                 m_messageLabel->setText( tr( "This storage device has %1 on it. "
                                              "What would you like to do?<br/>"
                                              "You will be able to review and confirm your choices "
@@ -1301,6 +1318,7 @@ ChoicePage::setupActions()
         else
         {
             CALAMARES_RETRANSLATE(
+                cDebug() << "Setting texts for 1 empty osprober entry";
                 m_messageLabel->setText( tr( "This storage device already has an operating system on it. "
                                              "What would you like to do?<br/>"
                                              "You will be able to review and confirm your choices "
@@ -1325,6 +1343,8 @@ ChoicePage::setupActions()
         // osproberEntriesForCurrentDevice has at least 2 items.
 
         CALAMARES_RETRANSLATE(
+            cDebug() << "Setting texts for >= 2 osprober entries";
+
             m_messageLabel->setText( tr( "This storage device has multiple operating systems on it. "
                                          "What would you like to do?<br/>"
                                          "You will be able to review and confirm your choices "

@@ -503,30 +503,23 @@ findFS( QString defaultFS )
 {
     QStringList fsLanguage { QLatin1Literal( "C" ) };  // Required language list to turn off localization
     if ( defaultFS.isEmpty() )
+    {
+        cWarning() << "Partition-module setting *defaultFileSystemType* is missing, using ext4";
         defaultFS = QStringLiteral( "ext4" );
+    }
     if ( FileSystem::typeForName( defaultFS, fsLanguage ) != FileSystem::Unknown )
     {
         cDebug() << "Partition-module setting *defaultFileSystemType*" << defaultFS;
         return defaultFS;
     }
 
-    // First pass: try the default language instead of C locale
-    auto fsType = FileSystem::typeForName( defaultFS );
-    if ( fsType != FileSystem::Unknown )
-    {
-        defaultFS = FileSystem::nameForType( fsType, fsLanguage );
-        cWarning() << "Partition-module setting *defaultFileSystemType* changed" << defaultFS;
-        return defaultFS;
-    }
-
-    // Second pass: try case-insensitive, both unlocalized and localized
+    // Second pass: try case-insensitive
     const auto fstypes = FileSystem::types();
     for ( FileSystem::Type t : fstypes )
     {
-        if ( ( 0 == QString::compare( defaultFS, FileSystem::nameForType( t, fsLanguage ), Qt::CaseInsensitive ) ) ||
-             ( 0 == QString::compare( defaultFS, FileSystem::nameForType( t ), Qt::CaseInsensitive ) ) )
+        if ( 0 == QString::compare( defaultFS, FileSystem::nameForType( t, fsLanguage ), Qt::CaseInsensitive ) )
         {
-            defaultFS = FileSystem::nameForType( fsType, fsLanguage );
+            defaultFS = FileSystem::nameForType( t, fsLanguage );
             cWarning() << "Partition-module setting *defaultFileSystemType* changed" << defaultFS;
             return defaultFS;
         }
@@ -538,7 +531,7 @@ findFS( QString defaultFS )
     // This bit is for distro's debugging their settings, and shows
     // all the strings that KPMCore is matching against for FS type.
     {
-        Logger::CLog d( Logger::LOGDEBUG );
+        Logger::CDebug d;
         using TR = Logger::DebugRow< int, QString >;
         const auto fstypes = FileSystem::types();
         d << "Available types (" << fstypes.count() << ')';
@@ -612,6 +605,18 @@ PartitionViewStep::setConfigurationMap( const QVariantMap& configurationMap )
         else
             choices.insert( PartitionActions::Choices::SwapChoice::SmallSwap );
     }
+
+    // Not all are supported right now // FIXME
+    static const char unsupportedSetting[] = "Partition-module does not support *userSwapChoices* setting";
+
+#define COMPLAIN_UNSUPPORTED(x) \
+    if ( choices.contains( x ) ) \
+    { cWarning() << unsupportedSetting << PartitionActions::Choices::choiceToName( x ); choices.remove( x ); }
+
+    COMPLAIN_UNSUPPORTED( PartitionActions::Choices::SwapChoice::SwapFile )
+    COMPLAIN_UNSUPPORTED( PartitionActions::Choices::SwapChoice::ReuseSwap )
+#undef COMPLAIN_UNSUPPORTED
+
     m_swapChoices = choices;
 
     // These gs settings seem to be unused (in upstream Calamares) outside of
