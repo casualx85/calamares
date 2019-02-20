@@ -1,0 +1,1 @@
+These files must be in /etc/calamares but linked to /usr/share/calamares/modules/ or directly copied to  /usr/share/calamares/modules/ 
