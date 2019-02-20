@@ -27,8 +27,7 @@ def run():
 
     :return:
     """
-    return_code = target_env_call(["update-initramfs", "-k", "all", "-c",
-                                   "-t"])
+    return_code = target_env_call(["mkinitcpio", "-p", "linux-hardened"])
 
     if return_code != 0:
         return (
