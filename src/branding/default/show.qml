@@ -44,11 +44,9 @@ Presentation
         Text {
             anchors.horizontalCenter: background.horizontalCenter
             anchors.top: background.bottom
-            text: "This is a customizable QML slideshow.<br/>"+
-                  "Distributions should provide their own slideshow and list it in <br/>"+
-                  "their custom branding.desc file.<br/>"+
-                  "To create a Calamares presentation in QML, import calamares.slideshow,<br/>"+
-                  "define a Presentation element with as many Slide elements as needed."
+            text: "AnthurestaOS says Hello World!<br/>"+
+                  "Welcome to AnthurestaOS, a future distribution that focuses on security and protection.<br/>"+
+                  "First RC Builds will be available soon. Pls stay tuned!.<br/>"+
             wrapMode: Text.WordWrap
             width: presentation.width
             horizontalAlignment: Text.Center
